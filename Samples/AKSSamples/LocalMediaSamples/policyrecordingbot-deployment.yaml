@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crfrontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: crfrontend
+  template:
+    metadata:
+      labels:
+        app: crfrontend
+    spec:
+      containers:
+      - name: crfrontend
+        image: policyrecordingbotacr.azurecr.io/crfrontend:latest
+        ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: crfrontend-service
+spec:
+  selector:
+    app: crfrontend
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+  type: LoadBalancer
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crworkerrole
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: crworkerrole
+  template:
+    metadata:
+      labels:
+        app: crworkerrole
+    spec:
+      containers:
+      - name: crworkerrole
+        image: policyrecordingbotacr.azurecr.io/crworkerrole:latest

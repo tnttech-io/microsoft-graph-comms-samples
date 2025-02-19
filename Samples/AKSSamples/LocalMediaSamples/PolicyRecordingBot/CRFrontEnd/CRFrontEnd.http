@@ -1,0 +1,6 @@
+@CRFrontEnd_HostAddress = http://localhost:5118
+
+GET {{CRFrontEnd_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
