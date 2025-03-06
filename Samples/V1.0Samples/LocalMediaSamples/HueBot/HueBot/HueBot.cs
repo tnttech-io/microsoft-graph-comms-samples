@@ -5,26 +5,22 @@
 
 namespace HueBot
 {
-    using System.Collections.Generic;
-    using System.Fabric;
     using System.IO;
     using System.Reflection;
     using Microsoft.AspNetCore.Builder;
     using Microsoft.AspNetCore.Hosting;
-    using Microsoft.AspNetCore.Server.HttpSys;
     using Microsoft.Extensions.Configuration;
     using Microsoft.Extensions.DependencyInjection;
+    using Microsoft.Extensions.Hosting;
     using Microsoft.Graph.Communications.Common.Telemetry;
-    using Microsoft.ServiceFabric.Services.Communication.AspNetCore;
-    using Microsoft.ServiceFabric.Services.Communication.Runtime;
-    using Microsoft.ServiceFabric.Services.Runtime;
+    using Microsoft.Graph.Models.TermStore;
     using Sample.Common.Logging;
     using Sample.HueBot.Bot;
 
     /// <summary>
     /// The FabricRuntime creates an instance of this class for each service type instance.
     /// </summary>
-    internal sealed class HueBot : StatelessService
+    public class HueBot
     {
         private IGraphLogger logger;
         private SampleObserver observer;
@@ -35,17 +31,14 @@ namespace HueBot
         /// <summary>
         /// Initializes a new instance of the <see cref="HueBot" /> class.
         /// </summary>
-        /// <param name="context">Stateless service context from service fabric.</param>
         /// <param name="logger">Global logger instance.</param>
         /// <param name="observer">Global observer instance.</param>
-        public HueBot(StatelessServiceContext context, IGraphLogger logger, SampleObserver observer)
-            : base(context)
+        public HueBot(IGraphLogger logger, SampleObserver observer)
         {
             this.logger = logger;
             this.observer = observer;
 
-            // Set directory to where the assemblies are running from.
-            // This is necessary for Media binaries to pick up logging configuration.
+           // Set directory to where the assemblies are running from.
             var location = Assembly.GetExecutingAssembly().Location;
             Directory.SetCurrentDirectory(Path.GetDirectoryName(location));
         }
@@ -54,7 +47,7 @@ namespace HueBot
         /// Optional override to create listeners (like tcp, http) for this service instance.
         /// </summary>
         /// <returns>The collection of listeners.</returns>
-        protected override IEnumerable<ServiceInstanceListener> CreateServiceInstanceListeners()
+        public void Run()
         {
             this.configuration = new ConfigurationBuilder()
                 .SetBasePath(Directory.GetCurrentDirectory())
@@ -62,56 +55,31 @@ namespace HueBot
                 .Build();
 
             this.botOptions = this.configuration.GetSection("Bot").Get<BotOptions>();
+            this.bot = new Bot(this.botOptions, this.logger);
 
-            this.bot = new Bot(this.botOptions, this.logger, this.Context);
-
-            var serviceInstanceListeners = new List<ServiceInstanceListener>();
-            foreach (string endpointName in new[] { "ServiceEndpoint", "SignalingPort", "LocalEndpoint" })
-            {
-                serviceInstanceListeners.Add(new ServiceInstanceListener(
-                    serviceContext =>
-                        new HttpSysCommunicationListener(serviceContext, endpointName, (url, listener) =>
-                        {
-                            ServiceEventSource.Current.ServiceMessage(serviceContext, $"Starting web listener on {url}");
-                            return this.CreateHueBotWebHost(url);
-                        }),
-                    endpointName));
-            }
-
-            return serviceInstanceListeners.ToArray();
-        }
-
-        /// <summary>
-        /// Creates the hue bot web host.
-        /// </summary>
-        /// <param name="url">The URL to host at.</param>
-        /// <returns>web host.</returns>
-        private IWebHost CreateHueBotWebHost(string url)
-        {
-            // Reference https://docs.microsoft.com/en-us/azure/service-fabric/service-fabric-reliable-services-communication-aspnetcore
-            return new WebHostBuilder()
-                .UseHttpSys(options =>
+            var host = new WebHostBuilder()
+                .UseKestrel() // Use Kestrel instead of HTTP.sys
+                .ConfigureServices(services =>
                 {
-                    // Copied from https://docs.microsoft.com/en-us/aspnet/core/fundamentals/servers/httpsys
-                    options.Authentication.Schemes = AuthenticationSchemes.None;
-                    options.Authentication.AllowAnonymous = true;
-                    options.MaxConnections = 1000;
-                    options.MaxRequestBodySize = 30000000;
+                    services.AddSingleton(this.logger);
+                    services.AddSingleton(this.observer);
+                    services.AddSingleton(this.botOptions);
+                    services.AddSingleton(this.bot);
+                    services.AddControllers();
                 })
-                .ConfigureServices(
-                    services => services
-                        .AddSingleton(this.logger)
-                        .AddSingleton(this.observer)
-                        .AddSingleton(this.Context)
-                        .AddSingleton(this.botOptions)
-                        .AddSingleton(this.bot)
-                        .AddMvc())
-                .Configure(app => app
-                    .UseDeveloperExceptionPage() // Disable this on production environments.
-                    .UseMvc())
-                .UseConfiguration(this.configuration)
-                .UseUrls(url)
+                .Configure(app =>
+                {
+                    app.UseDeveloperExceptionPage();
+                    app.UseRouting();
+                    app.UseEndpoints(endpoints =>
+                    {
+                        endpoints.MapControllers();
+                    });
+                })
+                .UseUrls(this.botOptions.BotBaseUrl.ToString())
                 .Build();
+
+            host.Run();
         }
     }
 }

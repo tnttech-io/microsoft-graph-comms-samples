@@ -9,7 +9,6 @@ namespace Sample.HueBot.Bot
     using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Drawing;
-    using System.Fabric;
     using System.Net;
     using System.Threading.Tasks;
     using Microsoft.Graph;
@@ -19,6 +18,8 @@ namespace Sample.HueBot.Bot
     using Microsoft.Graph.Communications.Common;
     using Microsoft.Graph.Communications.Common.Telemetry;
     using Microsoft.Graph.Communications.Resources;
+    using Microsoft.Graph.Contracts;
+    using Microsoft.Graph.Models;
     using Microsoft.Skype.Bots.Media;
     using Sample.Common;
     using Sample.Common.Authentication;
@@ -43,26 +44,18 @@ namespace Sample.HueBot.Bot
         /// <param name="options">The bot options.</param>
         /// <param name="graphLogger">The graph logger.</param>
         /// <param name="serviceContext">Service context.</param>
-        public Bot(BotOptions options, IGraphLogger graphLogger, StatelessServiceContext serviceContext)
+        public Bot(BotOptions options, IGraphLogger graphLogger)
         {
             this.Options = options;
             this.logger = graphLogger;
 
             var name = this.GetType().Assembly.GetName().Name;
-            var builder = new CommunicationsClientBuilder(
-                name,
-                options.AppId,
-                this.logger);
+            var builder = new CommunicationsClientBuilder(name, options.AppId, this.logger);
 
-            var authProvider = new AuthenticationProvider(
-                name,
-                options.AppId,
-                options.AppSecret,
-                this.logger);
-
+            var authProvider = new AuthenticationProvider(name, options.AppId, options.AppSecret, this.logger);
             builder.SetAuthenticationProvider(authProvider);
-            builder.SetNotificationUrl(options.BotBaseUrl.ReplacePort(options.BotBaseUrl.Port + serviceContext.NodeInstance()));
-            builder.SetMediaPlatformSettings(this.MediaInit(options, serviceContext));
+            builder.SetNotificationUrl(options.BotBaseUrl);
+            builder.SetMediaPlatformSettings(this.MediaInit(options));
             builder.SetServiceBaseUrl(options.PlaceCallEndpointUrl);
 
             this.Client = builder.Build();
@@ -109,43 +102,33 @@ namespace Sample.HueBot.Bot
         /// <returns>The <see cref="ICall"/> that was requested to join.</returns>
         public async Task<ICall> JoinCallAsync(JoinCallController.JoinCallBody joinCallBody)
         {
-            // A tracking id for logging purposes. Helps identify this call in logs.
             var scenarioId = Guid.NewGuid();
-
             MeetingInfo meetingInfo;
             ChatInfo chatInfo;
+
             if (!string.IsNullOrWhiteSpace(joinCallBody.VideoTeleconferenceId))
             {
-                // Video Tele-Conference id is a cloud-video-interop numeric meeting id.
                 var onlineMeeting = await this.OnlineMeetings
                     .GetOnlineMeetingAsync(joinCallBody.TenantId, joinCallBody.VideoTeleconferenceId, scenarioId)
                     .ConfigureAwait(false);
 
-                meetingInfo = new OrganizerMeetingInfo { Organizer = onlineMeeting.Participants.Organizer.Identity, };
+                meetingInfo = new OrganizerMeetingInfo { Organizer = onlineMeeting.Participants.Organizer.Identity };
                 chatInfo = onlineMeeting.ChatInfo;
-                //// meetingInfo.AllowConversationWithoutHost = joinCallBody.AllowConversationWithoutHost;
             }
             else
             {
                 (chatInfo, meetingInfo) = JoinInfo.ParseJoinURL(joinCallBody.JoinURL);
             }
 
-            var tenantId =
-                joinCallBody.TenantId ??
-                (meetingInfo as OrganizerMeetingInfo)?.Organizer.GetPrimaryIdentity()?.GetTenantId();
+            var tenantId = joinCallBody.TenantId ??
+                           (meetingInfo as OrganizerMeetingInfo)?.Organizer.GetPrimaryIdentity()?.GetTenantId();
+
             ILocalMediaSession mediaSession = this.CreateLocalMediaSession();
 
-            var joinParams = new JoinMeetingParameters(chatInfo, meetingInfo, mediaSession)
-            {
-                TenantId = tenantId,
-            };
+            var joinParams = new JoinMeetingParameters(chatInfo, meetingInfo, mediaSession) { TenantId = tenantId };
 
             if (!string.IsNullOrWhiteSpace(joinCallBody.DisplayName))
             {
-                // Teams client does not allow changing of ones own display name.
-                // If display name is specified, we join as anonymous (guest) user
-                // with the specified display name.  This will put bot into lobby
-                // unless lobby bypass is disabled.
                 joinParams.GuestIdentity = new Identity
                 {
                     Id = Guid.NewGuid().ToString(),
@@ -225,7 +208,6 @@ namespace Sample.HueBot.Bot
                     ? this.CreateLocalMediaSession(callId)
                     : this.CreateLocalMediaSession();
 
-                // Answer call and start video playback
                 call?.AnswerAsync(mediaSession).ForgetAndLogExceptionAsync(
                     call.GraphLogger,
                     $"Answering call {call.Id} with scenario {call.ScenarioId}.");
@@ -273,8 +255,6 @@ namespace Sample.HueBot.Bot
                 {
                     StreamDirections = StreamDirection.Sendrecv,
                     ReceiveColorFormat = VideoColorFormat.NV12,
-
-                    // We loop back the video in this sample. The MediaPlatform always sends only NV12 frames. So include only NV12 video in supportedSendVideoFormats
                     SupportedSendVideoFormats = new List<VideoFormat>
                     {
                         VideoFormat.NV12_270x480_15Fps,
@@ -320,29 +300,27 @@ namespace Sample.HueBot.Bot
         /// <param name="options">The bot options.</param>
         /// <param name="serviceContext">Service context.</param>
         /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-        private MediaPlatformSettings MediaInit(BotOptions options, StatelessServiceContext serviceContext)
-        {
-            var instanceNumber = serviceContext.NodeInstance();
-            var publicMediaUrl = options.BotMediaProcessorUrl ?? options.BotBaseUrl;
+       private MediaPlatformSettings MediaInit(BotOptions options)
+ {
+     var publicMediaUrl = options.BotMediaProcessorUrl ?? options.BotBaseUrl;
 
-            var instanceAddresses = Dns.GetHostEntry(publicMediaUrl.Host).AddressList;
-            if (instanceAddresses.Length == 0)
-            {
-                throw new InvalidOperationException("Could not resolve the PIP hostname. Please make sure that PIP is properly configured for the service");
-            }
+     var instanceAddresses = Dns.GetHostEntry(publicMediaUrl.Host).AddressList;
+     if (instanceAddresses.Length == 0)
+     {
+         throw new InvalidOperationException("Could not resolve the PIP hostname. Please make sure that PIP is properly configured for the service");
+     }
 
-            return new MediaPlatformSettings()
-            {
-                MediaPlatformInstanceSettings = new MediaPlatformInstanceSettings()
-                {
-                    CertificateThumbprint = options.Certificate,
-                    InstanceInternalPort = serviceContext.CodePackageActivationContext.GetEndpoint("MediaPort").Port,
-                    InstancePublicIPAddress = instanceAddresses[0],
-                    InstancePublicPort = publicMediaUrl.Port + instanceNumber,
-                    ServiceFqdn = publicMediaUrl.Host,
-                },
-                ApplicationId = options.AppId,
-            };
-        }
+     return new MediaPlatformSettings()
+     {
+         MediaPlatformInstanceSettings = new MediaPlatformInstanceSettings()
+         {
+             CertificateThumbprint = options.Certificate,
+             InstancePublicIPAddress = instanceAddresses[0],
+             InstancePublicPort = publicMediaUrl.Port,
+             ServiceFqdn = publicMediaUrl.Host,
+         },
+         ApplicationId = options.AppId,
+     };
+ }
     }
 }

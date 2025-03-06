@@ -6,11 +6,9 @@
 namespace Sample.HueBot.Controllers
 {
     using System;
-    using System.Fabric;
     using System.Threading.Tasks;
     using Microsoft.AspNetCore.Mvc;
     using Sample.HueBot.Bot;
-    using Sample.HueBot.Extensions;
 
     /// <summary>
     /// JoinCallController is a third-party controller that can be called directly by the client or test app to trigger the bot to join a call.
@@ -18,19 +16,16 @@ namespace Sample.HueBot.Controllers
     public class JoinCallController : Controller
     {
         private Bot bot;
-        private StatelessServiceContext statelessServiceContext;
         private BotOptions botOptions;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="JoinCallController"/> class.
         /// </summary>
         /// <param name="bot">Bot instance.</param>
-        /// <param name="statelessServiceContext">The service context.</param>
         /// <param name="botOptions">The bot options.</param>
-        public JoinCallController(Bot bot, StatelessServiceContext statelessServiceContext, BotOptions botOptions)
+        public JoinCallController(Bot bot, BotOptions botOptions)
         {
             this.bot = bot;
-            this.statelessServiceContext = statelessServiceContext;
             this.botOptions = botOptions;
         }
 
@@ -47,8 +42,8 @@ namespace Sample.HueBot.Controllers
         {
             var call = await this.bot.JoinCallAsync(joinCallBody).ConfigureAwait(false);
 
-            var serviceURL = new UriBuilder($"{this.Request.Scheme}://{this.Request.Host}");
-            serviceURL.Port = this.botOptions.BotBaseUrl.Port + this.statelessServiceContext.NodeInstance();
+            // Use the bot's base URL directly (no node instance in AKS)
+            var serviceURL = new UriBuilder(this.botOptions.BotBaseUrl);
 
             return this.Ok(new JoinCallResponseBody
             {
