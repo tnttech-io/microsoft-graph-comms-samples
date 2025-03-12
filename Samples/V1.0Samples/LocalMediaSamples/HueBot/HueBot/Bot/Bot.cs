@@ -24,8 +24,6 @@ namespace Sample.HueBot.Bot
     using Sample.Common.Meetings;
     using Sample.Common.OnlineMeetings;
     using Sample.HueBot.Controllers;
-    using Sample.HueBot.Extensions;
-
     /// <summary>
     /// The core bot logic.
     /// </summary>
