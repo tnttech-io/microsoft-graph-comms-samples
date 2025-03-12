@@ -13,7 +13,6 @@ namespace HueBot
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Hosting;
     using Microsoft.Graph.Communications.Common.Telemetry;
-    using Microsoft.Graph.Models.TermStore;
     using Sample.Common.Logging;
     using Sample.HueBot.Bot;
 

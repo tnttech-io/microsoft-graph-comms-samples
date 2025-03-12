@@ -18,8 +18,6 @@ namespace Sample.HueBot.Bot
     using Microsoft.Graph.Communications.Common;
     using Microsoft.Graph.Communications.Common.Telemetry;
     using Microsoft.Graph.Communications.Resources;
-    using Microsoft.Graph.Contracts;
-    using Microsoft.Graph.Models;
     using Microsoft.Skype.Bots.Media;
     using Sample.Common;
     using Sample.Common.Authentication;

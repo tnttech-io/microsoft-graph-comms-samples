@@ -19,7 +19,7 @@ namespace Sample.HueBot.Bot
     using Microsoft.Skype.Bots.Media;
     using Sample.Common;
     using Timer = System.Timers.Timer;
-    using Microsoft.Graph.Models;
+   
 
     /// <summary>
     /// Call Handler Logic.
