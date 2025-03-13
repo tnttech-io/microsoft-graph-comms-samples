@@ -15,21 +15,24 @@ namespace Sample.HueBot.Bot
     using System.Drawing;
     using System.Drawing.Imaging;
     using System.Runtime.InteropServices;
+    using System.Runtime.Versioning;
     using Microsoft.Graph.Communications.Common.Telemetry;
 
     /// <summary>
     /// The media utils class.
     /// </summary>
+    [SupportedOSPlatform("windows")]
     public class MediaUtils
     {
         /// <summary>
-        /// Transform NV12 to bmp image so we can view how is it looks like. Note it's not NV12 to RBG conversion.
+        /// Transform NV12 to bmp image so we can view how it looks like. Note it's not NV12 to RGB conversion.
         /// </summary>
         /// <param name="data">NV12 sample data.</param>
         /// <param name="width">Image width.</param>
         /// <param name="height">Image height.</param>
         /// <param name="logger">Log instance.</param>
         /// <returns>The <see cref="Bitmap"/>.</returns>
+        [SupportedOSPlatform("windows")]
         public static Bitmap TransformNv12ToBmpFaster(byte[] data, int width, int height, IGraphLogger logger)
         {
             Stopwatch watch = new Stopwatch();
