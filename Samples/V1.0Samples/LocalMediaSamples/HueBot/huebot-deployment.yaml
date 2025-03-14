@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: huebot-deployment
+  labels:
+    app: huebot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: huebot
+  template:
+    metadata:
+      labels:
+        app: huebot
+    spec:
+      containers:
+      - name: huebot
+        image: hubotacr.azurecr.io/huebot:latest  # ✅ Your ACR image
+        ports:
+        - containerPort: 5000
+        env:
+        - name: ASPNETCORE_ENVIRONMENT
+          value: "Development"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: huebot-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: huebot
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 5000
