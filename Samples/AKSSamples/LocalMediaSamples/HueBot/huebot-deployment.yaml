@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: huebot-deployment
+  labels:
+    app: huebot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: huebot
+  template:
+    metadata:
+      labels:
+        app: huebot
+    spec:
+      containers:
+      - name: huebot
+        image: hubotacr.azurecr.io/huebot:latest  # ✅ Your ACR image
+        ports:
+        - containerPort: 5000
+        env:
+        - name: ASPNETCORE_ENVIRONMENT
+          value: "Development"
+        - name: CERT_PATH
+          value: "/app/certs"  # ✅ Certificate location inside the container
+        - name: CERT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: huebot-cert-secret  # ✅ Use a Kubernetes secret
+              key: certPassword
+        volumeMounts:
+        - name: cert-volume
+          mountPath: "/app/certs"  # ✅ Mounts the secret as files in this path
+          readOnly: true
+      volumes:
+      - name: cert-volume
+        secret:
+          secretName: huebot-cert-secret  # ✅ This secret should store the .pfx file
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: huebot-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: huebot
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 5000
