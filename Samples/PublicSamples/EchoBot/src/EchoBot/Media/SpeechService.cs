@@ -1,4 +1,6 @@
-﻿using Microsoft.CognitiveServices.Speech;
+﻿using EchoBot.Hubs;
+using Microsoft.AspNetCore.SignalR;
+using Microsoft.CognitiveServices.Speech;
 using Microsoft.CognitiveServices.Speech.Audio;
 using Microsoft.Skype.Bots.Media;
 using System.Runtime.InteropServices;
@@ -29,10 +31,14 @@ namespace EchoBot.Media
         private readonly SpeechConfig _speechConfig;
         private SpeechRecognizer _recognizer;
         private readonly SpeechSynthesizer _synthesizer;
+
+        private readonly IHubContext<SpeechHub> _hubContext;
         /// <summary>
         /// Initializes a new instance of the <see cref="SpeechService" /> class.
-        public SpeechService(AppSettings settings, ILogger logger)
+        // Add hubContext to the constructor
+        public SpeechService(AppSettings settings, ILogger logger, IHubContext<SpeechHub> hubContext)
         {
+            _hubContext = hubContext;
             _logger = logger;
 
             _speechConfig = SpeechConfig.FromSubscription(settings.SpeechConfigKey, settings.SpeechConfigRegion);
@@ -151,9 +157,14 @@ namespace EchoBot.Media
                             return;
 
                         _logger.LogInformation($"RECOGNIZED: Text={e.Result.Text}");
+
                         // We recognized the speech
                         // Now do Speech to Text
                         await TextToSpeech(e.Result.Text);
+
+                        // Broadcast the transcript via SignalR
+                        await _hubContext.Clients.All.SendAsync("ReceiveTranscript", e.Result.Text);
+                        _logger.LogInformation($"Broadcasting transcript: {e.Result.Text}");
                     }
                     else if (e.Result.Reason == ResultReason.NoMatch)
                     {

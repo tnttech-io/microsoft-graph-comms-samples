@@ -28,6 +28,8 @@ using System.Net;
 using EchoBot.Util;
 using Microsoft.Graph.Models;
 using Microsoft.Graph.Contracts;
+using EchoBot.Hubs;
+using Microsoft.AspNetCore.SignalR;
 
 namespace EchoBot.Bot
 {
@@ -54,6 +56,11 @@ namespace EchoBot.Bot
         /// The settings
         /// </summary>
         private readonly AppSettings _settings;
+
+        /// <summary>
+        /// The SignalR speech Hub
+        /// </summary>
+        private readonly IHubContext<SpeechHub> _hubContext;
 
         /// <summary>
         /// Logger for logging media platform information
@@ -89,16 +96,19 @@ namespace EchoBot.Bot
         /// <param name="logger"></param>
         /// <param name="settings"></param>
         /// <param name="mediaLogger"></param>
+        /// <param name="hubContext"></param>
         public BotService(
             IGraphLogger graphLogger,
             ILogger<BotService> logger,
             IOptions<AppSettings> settings,
-            IBotMediaLogger mediaLogger)
+            IBotMediaLogger mediaLogger,
+            IHubContext<SpeechHub> hubContext)
         {
             _graphLogger = graphLogger;
             _logger = logger;
             _settings = settings.Value;
             _mediaPlatformLogger = mediaLogger;
+            _hubContext = hubContext; // Assign the parameter to a private field
         }
 
         /// <summary>
@@ -318,7 +328,7 @@ namespace EchoBot.Bot
         {
             foreach (var call in args.AddedResources)
             {
-                var callHandler = new CallHandler(call, _settings, _logger);
+                var callHandler = new CallHandler(call, _settings, _logger, _hubContext);
                 var threadId = call.Resource.ChatInfo.ThreadId;
                 this.CallHandlers[threadId] = callHandler;
             }

@@ -12,8 +12,10 @@
 // </copyright>
 // <summary>The bot media stream.</summary>
 // ***********************************************************************-
+using EchoBot.Hubs;
 using EchoBot.Media;
 using EchoBot.Util;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Graph.Communications.Calls;
 using Microsoft.Graph.Communications.Calls.Media;
 using Microsoft.Graph.Communications.Common;
@@ -66,13 +68,15 @@ namespace EchoBot.Bot
             string callId,
             IGraphLogger graphLogger,
             ILogger logger,
-            AppSettings settings
+            AppSettings settings,
+            IHubContext<SpeechHub> hubContext
         )
             : base(graphLogger)
         {
             ArgumentVerifier.ThrowOnNullArgument(mediaSession, nameof(mediaSession));
             ArgumentVerifier.ThrowOnNullArgument(logger, nameof(logger));
             ArgumentVerifier.ThrowOnNullArgument(settings, nameof(settings));
+            ArgumentVerifier.ThrowOnNullArgument(hubContext, nameof(hubContext)); // Verify hubContext
 
             _settings = settings;
             _logger = logger;
@@ -97,7 +101,7 @@ namespace EchoBot.Bot
 
             if (_settings.UseSpeechService)
             {
-                _languageService = new SpeechService(_settings, _logger);
+                _languageService = new SpeechService(_settings, _logger, hubContext);
                 _languageService.SendMediaBuffer += this.OnSendMediaBuffer;
             }
         }
