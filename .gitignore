@@ -275,3 +275,5 @@ appsettings.development.json
 
 # Cache file that gets created when running audio bot
 *.dat
+.vscode/tasks.json
+.vscode/launch.json
