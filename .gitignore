@@ -277,3 +277,4 @@ appsettings.development.json
 *.dat
 .vscode/tasks.json
 .vscode/launch.json
+.vscode/settings.json
