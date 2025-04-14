@@ -1,5 +1,7 @@
 using EchoBot;
 using EchoBot.Hubs;
+using Azure.Identity;
+using Azure.Security.KeyVault.Secrets;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Logging.Configuration;
@@ -19,7 +21,12 @@ IHost host = Host.CreateDefaultBuilder(args)
 
        services.AddHostedService<EchoBotWorker>();
 
-       services.AddSignalR();
+       var keyVaultEndpoint = new Uri("https://aeu2-vnext4-bot-d1-kv.vault.azure.net/");
+       var client = new SecretClient(keyVaultEndpoint, new DefaultAzureCredential());
+       var secret = client.GetSecret("SignalRConnectionString");
+       var signalRConnectionString = secret.Value.Value;
+
+       services.AddSignalR().AddAzureSignalR(signalRConnectionString);
    })
    .ConfigureWebHostDefaults(webBuilder =>
    {
