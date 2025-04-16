@@ -236,7 +236,7 @@ namespace EchoBot.Media
             {
                 // Define the Azure Function URL and key inside the method
                 string functionUrl = "https://vnextfunctionapp.azurewebsites.net/api/Function1";
-                string functionKey = "7SSPHwRaX4fuR9QSW8enPZSceyaLs6ILbcR2fQq_9HuJAzFunWM7XA==";
+                string functionKey = "XXXXXXXXXXXXX";
 
                 // Create an HttpClient instance
                 using var httpClient = new HttpClient();
