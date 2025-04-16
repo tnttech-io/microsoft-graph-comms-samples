@@ -1,14 +1,7 @@
 using EchoBot;
-using EchoBot.Hubs;
-using EchoBot.Media;
-using Azure.Identity;
-using Azure.Security.KeyVault.Secrets;
-using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Logging.Configuration;
 using Microsoft.Extensions.Logging.EventLog;
-using Microsoft.AspNetCore.SignalR;
-using EchoBot.Bot;
 
 IHost host = Host.CreateDefaultBuilder(args)
    .UseWindowsService(options =>
@@ -26,7 +19,7 @@ IHost host = Host.CreateDefaultBuilder(args)
        services.AddHostedService<EchoBotWorker>();
 
        // Retrieve SignalR connection string from Azure Key Vault
-       //var keyVaultEndpoint = new Uri("https://aeu2-vnext4-bot-d1-kv.vault.azure.net/");
+       //var keyVaultEndpoint = new Uri("https://XXXXXXXXXXXXXXXXXXXXXX");
        //var client = new SecretClient(keyVaultEndpoint, new DefaultAzureCredential());
        //var secret = client.GetSecret("SignalRConnectionString");
        //var signalRConnectionString = secret.Value.Value;
@@ -44,9 +37,9 @@ IHost host = Host.CreateDefaultBuilder(args)
        //});
 
        //services.AddSingleton<IBotService, BotService>();
-       SignalRHelper.InitializeAsync("Endpoint=https://vnext.service.signalr.net;AccessKey=D3jML1fHpdfHhOOnkwRBbp7rP9jolaKVqe1Wv5WBFWi5ZhvrDWceJQQJ99BDACHYHv6XJ3w3AAAAASRSeDBN;Version=1.0;").GetAwaiter().GetResult();
+       //SignalRHelper.InitializeAsync("Endpoint=https://vnext.service.signalr.net;AccessKey=XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX;Version=1.0;").GetAwaiter().GetResult();
        // Register SpeechService
-       services.AddSingleton<SpeechService>();
+       //services.AddSingleton<SpeechService>();
        
 
        // Register AppSettings from configuration

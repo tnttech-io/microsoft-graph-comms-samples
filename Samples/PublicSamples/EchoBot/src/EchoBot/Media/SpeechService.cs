@@ -4,6 +4,8 @@ using Microsoft.CognitiveServices.Speech;
 using Microsoft.CognitiveServices.Speech.Audio;
 using Microsoft.Skype.Bots.Media;
 using System.Runtime.InteropServices;
+using System.Text;
+using System.Text.Json;
 
 namespace EchoBot.Media
 {
@@ -164,9 +166,13 @@ namespace EchoBot.Media
 
                         // Broadcast the transcript via SignalR
                         //await SendMessagetoSignalRAsync(e.Result.Text);
-                        // NEW: Send transcript to SignalR
-                        await SignalRHelper.HubContext.Clients.All.SendAsync("ReceiveTranscript", e.Result.Text);
-                        _logger.LogInformation($"Broadcasting transcript: {e.Result.Text}");
+                        //await SignalRHelper.HubContext.Clients.All.SendAsync("ReceiveTranscript", e.Result.Text);
+                        //_logger.LogInformation($"Broadcasting transcript: {e.Result.Text}");
+
+                        // Send transcript ot Azure function. Call Azure Function with the recognized text
+                        var payload = JsonSerializer.Serialize(new { transcript = e.Result.Text });
+                        await SendTranscriptToAzureFunctionAsync(payload);
+
                     }
                     else if (e.Result.Reason == ResultReason.NoMatch)
                     {
@@ -224,22 +230,44 @@ namespace EchoBot.Media
             _isDraining = false;
         }
 
-        /// <summary>
-        /// Sends a message to all connected SignalR clients.
-        /// </summary>
-        /// <param name="message">The message to send.</param>
-        private async Task SendMessagetoSignalRAsync(string message)
+        private async Task SendTranscriptToAzureFunctionAsync(string payload)
         {
             try
             {
-                _logger.LogInformation("Sending message to SignalR clients: {Message}", message);
-                await _hubContext.Clients.All.SendAsync("ReceiveTranscript", message);
+                // Define the Azure Function URL and key inside the method
+                string functionUrl = "https://vnextfunctionapp.azurewebsites.net/api/Function1";
+                string functionKey = "7SSPHwRaX4fuR9QSW8enPZSceyaLs6ILbcR2fQq_9HuJAzFunWM7XA==";
+
+                // Create an HttpClient instance
+                using var httpClient = new HttpClient();
+
+                // Add the function key as a query parameter
+                var requestUrl = $"{functionUrl}?code={functionKey}";
+
+                // Create the HTTP content with the payload
+                var content = new StringContent(payload, Encoding.UTF8, "application/json");
+
+                // Log the request
+                //_logger.LogInformation("Calling Azure Function at {Url} with payload: {Payload}", requestUrl, payload);
+
+                // Send the POST request
+                var response = await httpClient.PostAsync(requestUrl, content);
+
+                // Ensure the response is successful
+                response.EnsureSuccessStatusCode();
+
+                // Log the response
+                //var responseContent = await response.Content.ReadAsStringAsync();
+                //_logger.LogInformation("Azure Function response: {Response}", responseContent);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error while sending message to SignalR clients.");
+                // Log any errors
+                _logger.LogError(ex, "Error occurred while calling Azure Function.");
             }
         }
+
+
 
         private async Task TextToSpeech(string text)
         {
