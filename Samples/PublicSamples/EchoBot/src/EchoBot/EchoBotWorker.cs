@@ -1,4 +1,5 @@
 using EchoBot.Bot;
+using EchoBot.Hubs;
 
 namespace EchoBot
 {
@@ -52,6 +53,7 @@ namespace EchoBot
 
         public override async Task StopAsync(CancellationToken cancellationToken)
         {
+            await SignalRHelper.DisposeAsync();
             // Ensure that the bot terminates all calls and disposes of the client
             await _botHost.StopAsync();
 

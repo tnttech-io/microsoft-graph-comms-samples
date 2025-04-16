@@ -163,7 +163,9 @@ namespace EchoBot.Media
                         await TextToSpeech(e.Result.Text);
 
                         // Broadcast the transcript via SignalR
-                        await _hubContext.Clients.All.SendAsync("ReceiveTranscript", e.Result.Text);
+                        //await SendMessagetoSignalRAsync(e.Result.Text);
+                        // NEW: Send transcript to SignalR
+                        await SignalRHelper.HubContext.Clients.All.SendAsync("ReceiveTranscript", e.Result.Text);
                         _logger.LogInformation($"Broadcasting transcript: {e.Result.Text}");
                     }
                     else if (e.Result.Reason == ResultReason.NoMatch)
@@ -220,6 +222,23 @@ namespace EchoBot.Media
             }
 
             _isDraining = false;
+        }
+
+        /// <summary>
+        /// Sends a message to all connected SignalR clients.
+        /// </summary>
+        /// <param name="message">The message to send.</param>
+        private async Task SendMessagetoSignalRAsync(string message)
+        {
+            try
+            {
+                _logger.LogInformation("Sending message to SignalR clients: {Message}", message);
+                await _hubContext.Clients.All.SendAsync("ReceiveTranscript", message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error while sending message to SignalR clients.");
+            }
         }
 
         private async Task TextToSpeech(string text)

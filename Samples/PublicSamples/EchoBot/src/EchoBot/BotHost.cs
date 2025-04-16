@@ -13,6 +13,7 @@
 // ***********************************************************************
 using DotNetEnv.Configuration;
 using EchoBot.Bot;
+using EchoBot.Hubs;
 using EchoBot.Util;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -78,6 +79,8 @@ namespace EchoBot
             builder.Logging.SetMinimumLevel(LogLevel.Information);
 
             builder.Logging.AddEventLog(config => config.SourceName = "Echo Bot Service");
+
+            builder.Services.AddSignalR();
 
             builder.Services.AddSingleton<IBotService, BotService>();
 
@@ -162,6 +165,8 @@ namespace EchoBot
             {
                 using (var scope = _app.Services.CreateScope())
                 {
+                    await SignalRHelper.DisposeAsync();
+
                     var bot = scope.ServiceProvider.GetRequiredService<IBotService>();
                     // terminate all calls and dispose of the call client
                     await bot.Shutdown();

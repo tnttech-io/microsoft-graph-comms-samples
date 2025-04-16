@@ -1,44 +1,69 @@
 using EchoBot;
 using EchoBot.Hubs;
+using EchoBot.Media;
 using Azure.Identity;
 using Azure.Security.KeyVault.Secrets;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Logging.Configuration;
 using Microsoft.Extensions.Logging.EventLog;
+using Microsoft.AspNetCore.SignalR;
+using EchoBot.Bot;
 
 IHost host = Host.CreateDefaultBuilder(args)
    .UseWindowsService(options =>
    {
        options.ServiceName = "Echo Bot Service";
    })
-   .ConfigureServices((context, services) =>
+   .ConfigureServices(services =>
    {
+       // Register EventLog logger provider options
        LoggerProviderOptions.RegisterProviderOptions<
            EventLogSettings, EventLogLoggerProvider>(services);
 
+       // Register BotHost and EchoBotWorker
        services.AddSingleton<IBotHost, BotHost>();
-
        services.AddHostedService<EchoBotWorker>();
 
-       var keyVaultEndpoint = new Uri("https://aeu2-vnext4-bot-d1-kv.vault.azure.net/");
-       var client = new SecretClient(keyVaultEndpoint, new DefaultAzureCredential());
-       var secret = client.GetSecret("SignalRConnectionString");
-       var signalRConnectionString = secret.Value.Value;
+       // Retrieve SignalR connection string from Azure Key Vault
+       //var keyVaultEndpoint = new Uri("https://aeu2-vnext4-bot-d1-kv.vault.azure.net/");
+       //var client = new SecretClient(keyVaultEndpoint, new DefaultAzureCredential());
+       //var secret = client.GetSecret("SignalRConnectionString");
+       //var signalRConnectionString = secret.Value.Value;
+       
+       //// Add SignalR with Azure SignalR Service
+       //services.AddSignalR().AddAzureSignalR("Endpoint=https://vnext.service.signalr.net;AccessKey=D3jML1fHpdfHhOOnkwRBbp7rP9jolaKVqe1Wv5WBFWi5ZhvrDWceJQQJ99BDACHYHv6XJ3w3AAAAASRSeDBN;Version=1.0;").AddHubOptions<SpeechHub>(options =>
+       ////services.AddSignalR().AddAzureSignalR(signalRConnectionString).AddHubOptions<SpeechHub>(options =>
+       //{
+       //    // Increase the time the server waits for a ping before considering the connection lost.
+       //    options.ClientTimeoutInterval = TimeSpan.FromSeconds(60);
+       //    // Set a keep-alive interval that pings the client regularly.
+       //    options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+       //    options.EnableDetailedErrors = true;
 
-       services.AddSignalR().AddAzureSignalR(signalRConnectionString);
+       //});
+
+       //services.AddSingleton<IBotService, BotService>();
+       SignalRHelper.InitializeAsync("Endpoint=https://vnext.service.signalr.net;AccessKey=D3jML1fHpdfHhOOnkwRBbp7rP9jolaKVqe1Wv5WBFWi5ZhvrDWceJQQJ99BDACHYHv6XJ3w3AAAAASRSeDBN;Version=1.0;").GetAwaiter().GetResult();
+       // Register SpeechService
+       services.AddSingleton<SpeechService>();
+       
+
+       // Register AppSettings from configuration
+       //services.Configure<AppSettings>(context.Configuration.GetSection("AppSettings"));
    })
-   .ConfigureWebHostDefaults(webBuilder =>
-   {
-       webBuilder.Configure(app =>
-       {
-           app.UseRouting();
-           app.UseEndpoints(endpoints =>
-           {
-               endpoints.MapHub<SpeechHub>("/speechhub");
-           });
-       });
-   })
+   //.ConfigureWebHostDefaults(webBuilder =>
+   //{
+   //    webBuilder.Configure(app =>
+   //    {
+   //        app.UseRouting();
+   //        app.UseEndpoints(endpoints =>
+   //        {
+   //            // Map SignalR hub
+   //            endpoints.MapHub<SpeechHub>("/speechhub");
+   //        });
+   //    });
+   //})
    .Build();
 
 await host.RunAsync();
