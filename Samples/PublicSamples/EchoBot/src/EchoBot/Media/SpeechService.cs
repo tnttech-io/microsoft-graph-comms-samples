@@ -161,8 +161,6 @@ namespace EchoBot.Media
                         _logger.LogInformation($"RECOGNIZED: Text={e.Result.Text}");
 
                         // We recognized the speech
-                        // Now do Speech to Text
-                        await TextToSpeech(e.Result.Text);
 
                         // Broadcast the transcript via SignalR
                         //await SendMessagetoSignalRAsync(e.Result.Text);
@@ -171,8 +169,12 @@ namespace EchoBot.Media
 
                         // Send transcript ot Azure function. Call Azure Function with the recognized text
                         var payload = JsonSerializer.Serialize(new { transcript = e.Result.Text });
-                        await SendTranscriptToAzureFunctionAsync(payload);
-
+                        string response = await SendTranscriptToAzureFunctionAsync(payload);
+                        if (!string.IsNullOrEmpty(response))
+                        {
+                            // Now do Speech to Text
+                            await TextToSpeech(e.Result.Text);
+                        }
                     }
                     else if (e.Result.Reason == ResultReason.NoMatch)
                     {
@@ -230,12 +232,12 @@ namespace EchoBot.Media
             _isDraining = false;
         }
 
-        private async Task SendTranscriptToAzureFunctionAsync(string payload)
+        private async Task<string> SendTranscriptToAzureFunctionAsync(string payload)
         {
             try
             {
                 // Define the Azure Function URL and key inside the method
-                string functionUrl = "https://vnextfunctionapp.azurewebsites.net/api/Function1";
+                string functionUrl = "https://vnextfunctionapp.azurewebsites.net/api/transcript";
                 string functionKey = "7SSPHwRaX4fuR9QSW8enPZSceyaLs6ILbcR2fQq_9HuJAzFunWM7XA==";
 
                 // Create an HttpClient instance
@@ -259,11 +261,14 @@ namespace EchoBot.Media
                 // Log the response
                 //var responseContent = await response.Content.ReadAsStringAsync();
                 //_logger.LogInformation("Azure Function response: {Response}", responseContent);
+                // Read and return the response content
+                return await response.Content.ReadAsStringAsync();
             }
             catch (Exception ex)
             {
                 // Log any errors
                 _logger.LogError(ex, "Error occurred while calling Azure Function.");
+                throw;
             }
         }
 
