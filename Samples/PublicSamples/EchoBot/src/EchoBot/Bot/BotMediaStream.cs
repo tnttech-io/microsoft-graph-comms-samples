@@ -22,6 +22,7 @@ using Microsoft.Graph.Communications.Common;
 using Microsoft.Graph.Communications.Common.Telemetry;
 using Microsoft.Skype.Bots.Media;
 using Microsoft.Skype.Internal.Media.Services.Common;
+using System;
 using System.Runtime.InteropServices;
 
 namespace EchoBot.Bot
@@ -203,44 +204,49 @@ namespace EchoBot.Bot
         /// <param name="e">The audio media received arguments.</param>
         private async void OnAudioMediaReceived(object? sender, AudioMediaReceivedEventArgs e)
         {
-            _logger.LogTrace($"Received Audio: [AudioMediaReceivedEventArgs(Data=<{e.Buffer.Data.ToString()}>, Length={e.Buffer.Length}, Timestamp={e.Buffer.Timestamp})]");
-
-            try
+            if (!e.Buffer.IsSilence)
             {
-                if (!startVideoPlayerCompleted.Task.IsCompleted) { return; }
+                _logger.LogTrace($"Received Audio: [AudioMediaReceivedEventArgs(Data=<{e.Buffer.Data.ToString()}>, Length={e.Buffer.Length}, Timestamp={e.Buffer.Timestamp})]");
 
-                if (_languageService != null)
+                try
                 {
-                    // send audio buffer to language service for processing
-                    // the particpant talking will hear the bot repeat what they said
-                    await _languageService.AppendAudioBuffer(e.Buffer);
-                    e.Buffer.Dispose();
-                }
-                else
-                {
-                    // send audio buffer back on the audio socket
-                    // the particpant talking will hear themselves
-                    var length = e.Buffer.Length;
-                    if (length > 0)
+                    if (!startVideoPlayerCompleted.Task.IsCompleted) { return; }
+
+                    if (_languageService != null)
                     {
-                        var buffer = new byte[length];
-                        Marshal.Copy(e.Buffer.Data, buffer, 0, (int)length);
+                        // send audio buffer to language service for processing
+                        // the particpant talking will hear the bot repeat what they said
+                        await _languageService.AppendAudioBuffer(e.Buffer);
+                        e.Buffer.Dispose();
+                    }
+                    else
+                    {
+                        // send audio buffer back on the audio socket
+                        // the particpant talking will hear themselves
+                        var length = e.Buffer.Length;
+                        if (length > 0)
+                        {
+                            var buffer = new byte[length];
+                            Marshal.Copy(e.Buffer.Data, buffer, 0, (int)length);
 
-                        var currentTick = DateTime.Now.Ticks;
-                        this.audioMediaBuffers = Util.Utilities.CreateAudioMediaBuffers(buffer, currentTick, _logger);
-                        await this.audioVideoFramePlayer.EnqueueBuffersAsync(this.audioMediaBuffers, new List<VideoMediaBuffer>());
+                            var currentTick = DateTime.Now.Ticks;
+                            this.audioMediaBuffers = Util.Utilities.CreateAudioMediaBuffers(buffer, currentTick, _logger);
+                            await this.audioVideoFramePlayer.EnqueueBuffersAsync(this.audioMediaBuffers, new List<VideoMediaBuffer>());
+                        }
                     }
                 }
+                catch (Exception ex)
+                {
+                    this.GraphLogger.Error(ex);
+                    _logger.LogError(ex, "OnAudioMediaReceived error");
+                }
+                finally
+                {
+                    e.Buffer.Dispose();
+                }
             }
-            catch (Exception ex)
-            {
-                this.GraphLogger.Error(ex);
-                _logger.LogError(ex, "OnAudioMediaReceived error");
-            }
-            finally
-            {
-                e.Buffer.Dispose();
-            }
+            // release/dispose buffer when done
+            e.Buffer.Dispose();
         }
 
         private void OnSendMediaBuffer(object? sender, Media.MediaStreamEventArgs e)
