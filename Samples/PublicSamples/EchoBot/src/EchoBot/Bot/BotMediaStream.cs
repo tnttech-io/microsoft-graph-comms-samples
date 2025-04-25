@@ -204,49 +204,45 @@ namespace EchoBot.Bot
         /// <param name="e">The audio media received arguments.</param>
         private async void OnAudioMediaReceived(object? sender, AudioMediaReceivedEventArgs e)
         {
-            if (!e.Buffer.IsSilence)
+
+            _logger.LogTrace($"Received Audio: [AudioMediaReceivedEventArgs(Data=<{e.Buffer.Data.ToString()}>, Length={e.Buffer.Length}, Timestamp={e.Buffer.Timestamp})]");
+
+            try
             {
-                _logger.LogTrace($"Received Audio: [AudioMediaReceivedEventArgs(Data=<{e.Buffer.Data.ToString()}>, Length={e.Buffer.Length}, Timestamp={e.Buffer.Timestamp})]");
+                if (!startVideoPlayerCompleted.Task.IsCompleted) { return; }
 
-                try
+                if (_languageService != null)
                 {
-                    if (!startVideoPlayerCompleted.Task.IsCompleted) { return; }
-
-                    if (_languageService != null)
-                    {
-                        // send audio buffer to language service for processing
-                        // the particpant talking will hear the bot repeat what they said
-                        await _languageService.AppendAudioBuffer(e.Buffer);
-                        e.Buffer.Dispose();
-                    }
-                    else
-                    {
-                        // send audio buffer back on the audio socket
-                        // the particpant talking will hear themselves
-                        var length = e.Buffer.Length;
-                        if (length > 0)
-                        {
-                            var buffer = new byte[length];
-                            Marshal.Copy(e.Buffer.Data, buffer, 0, (int)length);
-
-                            var currentTick = DateTime.Now.Ticks;
-                            this.audioMediaBuffers = Util.Utilities.CreateAudioMediaBuffers(buffer, currentTick, _logger);
-                            await this.audioVideoFramePlayer.EnqueueBuffersAsync(this.audioMediaBuffers, new List<VideoMediaBuffer>());
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    this.GraphLogger.Error(ex);
-                    _logger.LogError(ex, "OnAudioMediaReceived error");
-                }
-                finally
-                {
+                    // send audio buffer to language service for processing
+                    // the particpant talking will hear the bot repeat what they said
+                    await _languageService.AppendAudioBuffer(e.Buffer);
                     e.Buffer.Dispose();
                 }
+                else
+                {
+                    // send audio buffer back on the audio socket
+                    // the particpant talking will hear themselves
+                    var length = e.Buffer.Length;
+                    if (length > 0)
+                    {
+                        var buffer = new byte[length];
+                        Marshal.Copy(e.Buffer.Data, buffer, 0, (int)length);
+
+                        var currentTick = DateTime.Now.Ticks;
+                        this.audioMediaBuffers = Util.Utilities.CreateAudioMediaBuffers(buffer, currentTick, _logger);
+                        await this.audioVideoFramePlayer.EnqueueBuffersAsync(this.audioMediaBuffers, new List<VideoMediaBuffer>());
+                    }
+                }
             }
-            // release/dispose buffer when done
-            e.Buffer.Dispose();
+            catch (Exception ex)
+            {
+                this.GraphLogger.Error(ex);
+                _logger.LogError(ex, "OnAudioMediaReceived error");
+            }
+            finally
+            {
+                e.Buffer.Dispose();
+            }
         }
 
         private void OnSendMediaBuffer(object? sender, Media.MediaStreamEventArgs e)
