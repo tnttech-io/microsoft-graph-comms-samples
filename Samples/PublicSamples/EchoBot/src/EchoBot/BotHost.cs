@@ -82,6 +82,15 @@ namespace EchoBot
 
             builder.Services.AddSignalR();
 
+            builder.Services.AddCors(options =>
+            {
+                options.AddPolicy("CorsPolicyAllowStaticWebApp",
+                    policy => policy
+                        .AllowAnyOrigin()
+                        .AllowAnyMethod()
+                        .AllowAnyHeader());
+            });
+
             builder.Services.AddSingleton<IBotService, BotService>();
 
             // Bot Settings Setup
@@ -147,6 +156,9 @@ namespace EchoBot
                 _app.UseSwagger();
                 _app.UseSwaggerUI();
             }
+
+            // Enable CORS
+            _app.UseCors("CorsPolicyAllowStaticWebApp");
 
             _app.UseAuthorization();
 
