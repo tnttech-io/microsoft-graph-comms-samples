@@ -103,6 +103,7 @@ namespace EchoBot.Bot
             if (_settings.UseSpeechService)
             {
                 _languageService = new SpeechService(_settings, _logger, hubContext);
+                _languageService.SetBotMediaStream(this); // Set the reference back to this instance
                 _languageService.SendMediaBuffer += this.OnSendMediaBuffer;
             }
         }

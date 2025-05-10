@@ -1,7 +1,9 @@
-﻿using EchoBot.Hubs;
+﻿using EchoBot.Bot;
+using EchoBot.Hubs;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.CognitiveServices.Speech;
 using Microsoft.CognitiveServices.Speech.Audio;
+using Microsoft.Graph.Communications.Calls;
 using Microsoft.Skype.Bots.Media;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -35,9 +37,17 @@ namespace EchoBot.Media
         private readonly SpeechSynthesizer _synthesizer;
 
         private readonly IHubContext<SpeechHub> _hubContext;
+
+        // A reference to the BotMediaStream that contains the participants list
+        private BotMediaStream _botMediaStream;
+
+        // Store the active speaker information
+        private string _currentSpeakerName = "Unknown Speaker";
+        private uint[] _activeSpeakerIds;
+
         /// <summary>
         /// Initializes a new instance of the <see cref="SpeechService" /> class.
-        // Add hubContext to the constructor
+        /// </summary>
         public SpeechService(AppSettings settings, ILogger logger, IHubContext<SpeechHub> hubContext)
         {
             _hubContext = hubContext;
@@ -49,7 +59,14 @@ namespace EchoBot.Media
 
             var audioConfig = AudioConfig.FromStreamOutput(_audioOutputStream);
             _synthesizer = new SpeechSynthesizer(_speechConfig, audioConfig);
+        }
 
+        /// <summary>
+        /// Sets the reference to the BotMediaStream
+        /// </summary>
+        public void SetBotMediaStream(BotMediaStream botMediaStream)
+        {
+            _botMediaStream = botMediaStream;
         }
 
         /// <summary>
@@ -66,6 +83,13 @@ namespace EchoBot.Media
 
             try
             {
+                // Store the active speakers from the audio buffer
+                if (audioBuffer.ActiveSpeakers != null && audioBuffer.ActiveSpeakers.Length > 0)
+                {
+                    _activeSpeakerIds = audioBuffer.ActiveSpeakers;
+                    UpdateCurrentSpeakerName();
+                }
+
                 // audio for a 1:1 call
                 var bufferLength = audioBuffer.Length;
                 if (bufferLength > 0)
@@ -78,7 +102,52 @@ namespace EchoBot.Media
             }
             catch (Exception e)
             {
-                _logger.LogError(e, "Exception happend writing to input stream");
+                _logger.LogError(e, "Exception happened writing to input stream");
+            }
+        }
+
+        /// <summary>
+        /// Updates the current speaker name based on active speaker IDs
+        /// </summary>
+        private void UpdateCurrentSpeakerName()
+        {
+            if (_botMediaStream == null || _activeSpeakerIds == null || _activeSpeakerIds.Length == 0)
+            {
+                return;
+            }
+
+            var participants = _botMediaStream.GetParticipants();
+            if (participants == null || participants.Count == 0)
+            {
+                return;
+            }
+
+            // For simplicity, we'll use the first active speaker
+            var speakerId = _activeSpeakerIds[0];
+
+            // Try to find a participant that matches this media stream ID
+            foreach (var participant in participants)
+            {
+                // Note: We're making an assumption here that MediaStreamId can be cast to uint
+                // You may need to adjust this logic based on how your IParticipant implementation works
+                if (participant.Resource?.MediaStreams != null)
+                {
+                    foreach (var stream in participant.Resource.MediaStreams)
+                    {
+                        if (stream.SourceId == speakerId.ToString() ||
+                            (uint.TryParse(stream.SourceId, out uint id) && id == speakerId))
+                        {
+                            // We found our speaker
+                            var user = participant.Resource?.Info?.Identity?.User;
+                            if (user != null && !string.IsNullOrEmpty(user.DisplayName))
+                            {
+                                _currentSpeakerName = user.DisplayName;
+                                _logger.LogInformation($"Current speaker identified: {_currentSpeakerName}");
+                                return;
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -158,17 +227,17 @@ namespace EchoBot.Media
                         if (string.IsNullOrEmpty(e.Result.Text))
                             return;
 
-                        _logger.LogInformation($"RECOGNIZED: Text={e.Result.Text}");
+                        _logger.LogInformation($"RECOGNIZED: Text={e.Result.Text} from Speaker={_currentSpeakerName}");
 
                         // We recognized the speech
 
-                        // Broadcast the transcript via SignalR
-                        //await SendMessagetoSignalRAsync(e.Result.Text);
-                        //await SignalRHelper.HubContext.Clients.All.SendAsync("ReceiveTranscript", e.Result.Text);
-                        //_logger.LogInformation($"Broadcasting transcript: {e.Result.Text}");
+                        // Send transcript to Azure function with speaker information
+                        var payload = JsonSerializer.Serialize(new
+                        {
+                            transcript = e.Result.Text,
+                            speaker = _currentSpeakerName
+                        });
 
-                        // Send transcript ot Azure function. Call Azure Function with the recognized text
-                        var payload = JsonSerializer.Serialize(new { transcript = e.Result.Text });
                         string response = await SendTranscriptToAzureFunctionAsync(payload);
                         if (!string.IsNullOrEmpty(response))
                         {
@@ -238,7 +307,7 @@ namespace EchoBot.Media
             {
                 // Define the Azure Function URL and key inside the method
                 string functionUrl = "https://vnextfunctionapp.azurewebsites.net/api/transcript";
-                string functionKey = "7SSPHwRaX4fuR9QSW8enPZSceyaLs6ILbcR2fQq_9HuJAzFunWM7XA==";
+                string functionKey = "ZTNlatJExoaQybKVUN9kVkx-2Q-Wqrg9R_hfWmaUoccRAzFucUHxWQ==";
 
                 // Create an HttpClient instance
                 using var httpClient = new HttpClient();
@@ -249,8 +318,8 @@ namespace EchoBot.Media
                 // Create the HTTP content with the payload
                 var content = new StringContent(payload, Encoding.UTF8, "application/json");
 
-                // Log the request
-                //_logger.LogInformation("Calling Azure Function at {Url} with payload: {Payload}", requestUrl, payload);
+                // Log the request with speaker information
+                _logger.LogInformation($"Sending transcript from {_currentSpeakerName}: {payload}");
 
                 // Send the POST request
                 var response = await httpClient.PostAsync(requestUrl, content);
@@ -258,9 +327,6 @@ namespace EchoBot.Media
                 // Ensure the response is successful
                 response.EnsureSuccessStatusCode();
 
-                // Log the response
-                //var responseContent = await response.Content.ReadAsStringAsync();
-                //_logger.LogInformation("Azure Function response: {Response}", responseContent);
                 // Read and return the response content
                 return await response.Content.ReadAsStringAsync();
             }
@@ -271,8 +337,6 @@ namespace EchoBot.Media
                 throw;
             }
         }
-
-
 
         private async Task TextToSpeech(string text)
         {
