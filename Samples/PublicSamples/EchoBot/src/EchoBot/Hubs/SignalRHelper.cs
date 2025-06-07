@@ -20,6 +20,7 @@ namespace EchoBot.Hubs
 
             // Fix: Add a CancellationToken parameter to match the method signature
             _hubContext = await serviceManager.CreateHubContextAsync("TranscriptHub", CancellationToken.None);
+
         }
 
         public static IServiceHubContext HubContext => _hubContext;
